@@ -1,0 +1,336 @@
+name: realtime-ecom-platform
+
+networks:
+  platform_net:
+    driver: bridge
+
+volumes:
+  redpanda-0: {}
+  pg_data: {}
+  minio_data: {}
+  spark_ivy: {}
+
+
+services:
+  generator: # Generator of events
+    build:
+      context: .
+      dockerfile: services/generator/Dockerfile
+    container_name: generator
+    networks: [platform_net]
+    environment:
+      KAFKA_BROKERS: redpanda-0:9092
+      TOPIC: ecom.events.raw.v1
+      EVENTS_PER_SEC: "1"
+      DUP_RATE: "0.0"
+      LATE_RATE: "0.0"
+      LATE_MAX_SECONDS: "600"
+      INVALID_RATE: "0.01"
+    depends_on:
+      - redpanda-0
+    profiles: ["events"]
+
+  redpanda-0:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.2.14
+    container_name: redpanda-0
+    command:
+      - redpanda
+      - start
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda-0:9092,external://localhost:19092
+      - --pandaproxy-addr
+      - internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr
+      - internal://redpanda-0:8082,external://localhost:18082
+      - --schema-registry-addr
+      - internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr
+      - redpanda-0:33145
+      - --advertise-rpc-addr
+      - redpanda-0:33145
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+      - --default-log-level=info
+    networks: [platform_net]
+    volumes:
+      - redpanda-0:/var/lib/redpanda/data
+    ports:
+      - "18081:18081"
+      - "18082:18082"
+      - "19092:19092"
+      - "19644:9644"
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v3.5.0
+    container_name: redpanda-console
+    networks: [platform_net]
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda-0:9092"]
+        schemaRegistry:
+          enabled: true
+          urls: ["http://redpanda-0:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda-0:9644"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda-0
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    networks: [platform_net]
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: analytics
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: minio
+    networks: [platform_net]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  api:
+    build: ./services/api
+    container_name: api
+    networks: [platform_net]
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/analytics
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard: # Streamlit dashboard
+    build: ./services/dashboard
+    container_name: dashboard
+    networks: [platform_net]
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+   
+  minio-init: # Auto-create bucket 'lake' in minio
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: minio-init
+    networks: [platform_net]
+    depends_on:
+      - minio
+    environment:
+      MC_HOST_local: http://minio:minio12345@minio:9000
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      echo 'Waiting for MinIO...';
+      until mc ls local >/dev/null 2>&1; do sleep 1; done;
+      mc mb -p local/lake || true;
+      mc ls local/lake || true;
+      echo 'MinIO bucket lake is ready';
+      "
+    restart: "no"
+
+  bronze-writer:
+    build: ./services/bronze-writer
+    container_name: bronze-writer
+    networks: [platform_net]
+    depends_on:
+      - redpanda-0
+      - minio-init
+    environment:
+      KAFKA_BROKERS: redpanda-0:9092
+      TOPIC: ecom.events.raw.v1
+
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio12345
+      S3_BUCKET: lake
+
+      OUTPUT_PATH: s3a://lake/bronze/ecom_events/v1/
+      CHECKPOINT_PATH: s3a://lake/_checkpoints/bronze/ecom_events_v1/
+      STARTING_OFFSETS: earliest
+      SPARK_LOG_LEVEL: WARN
+
+      TRIGGER: "15 seconds"
+
+    user: root
+    volumes:
+      - spark_ivy:/tmp/ivy
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/ivy
+      - --packages
+      - org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262
+      - /opt/spark-apps/bronze_writer.py
+    profiles: ["pipeline"]
+
+  mc: # Debug tool (to list minio paths)
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    container_name: mc
+    networks: [platform_net]
+    environment:
+      MC_HOST_local: http://minio:minio12345@minio:9000
+    entrypoint: ["mc"]
+    profiles: ["debug"]
+
+  silver-writer:
+    build: ./services/silver-writer
+    container_name: silver-writer
+    networks: [platform_net]
+    depends_on:
+      - minio-init 
+    environment:
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio12345
+
+      BRONZE_PATH: s3a://lake/bronze/ecom_events/v1/
+      SILVER_PATH: s3a://lake/silver/ecom_events/v1/
+      QUARANTINE_PATH: s3a://lake/quarantine/ecom_events/v1/
+
+      SILVER_CHECKPOINT: s3a://lake/_checkpoints/silver/ecom_events_v1/
+      QUARANTINE_CHECKPOINT: s3a://lake/_checkpoints/quarantine/ecom_events_v1/
+
+      SPARK_SUBMIT_OPTS: >-
+        -Divy.cache.dir=/opt/spark/ivy
+        -Divy.home=/opt/spark/ivy
+        -Duser.home=/opt/spark
+        -Dcoursier.cache=/opt/spark/coursier
+
+      EVENT_WATERMARK: "15 minutes"
+      TRIGGER: "30 seconds"
+      MAX_FILES_PER_TRIGGER: "50"
+      SPARK_LOG_LEVEL: WARN
+
+    user: root
+    volumes:
+      - spark_ivy:/tmp/ivy
+    
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/ivy
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262
+      - /opt/spark-apps/silver_writer.py
+    profiles: ["pipeline"]
+
+  db-migrate:
+    image: postgres:16-alpine
+    container_name: db-migrate
+    networks: [platform_net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: app
+    volumes:
+      - ./infra/postgres:/migrations:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      psql -h postgres -U app -d analytics -f /migrations/02_indexes.sql
+      "
+    profiles: ["debug"]
+
+  gold-writer:
+    build: ./services/gold-writer
+    container_name: gold-writer
+    networks: [platform_net]
+    depends_on:
+      - minio-init
+      - postgres
+    environment:
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio12345
+
+      SILVER_PATH: s3a://lake/silver/ecom_events/v1/
+
+      GOLD_CHECKPOINT: s3a://lake/_checkpoints/gold/kpi_minute_v1/
+      EVENT_WATERMARK: "1 hour"
+      TRIGGER: "15 seconds"
+      MAX_FILES_PER_TRIGGER: "50"
+      SHUFFLE_PARTITIONS: "16"
+      SPARK_LOG_LEVEL: WARN
+
+      DATABASE_URL: postgresql://app:app@postgres:5432/analytics
+
+    user: root
+    volumes:
+      - spark_ivy:/tmp/ivy
+
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master
+      - local[*]
+      - --conf
+      - spark.jars.ivy=/tmp/ivy
+      - --packages
+      - org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262
+      - /opt/spark-apps/gold_kpi_writer.py
+    profiles: ["pipeline"]
+    
+  anomaly-detector:
+    build: ./services/anomaly-detector
+    container_name: anomaly-detector
+    networks: [platform_net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/analytics
+
+      METRICS: "events_total,events_purchase,revenue,purchase_conversion,add_to_cart_rate"
+      LOOKBACK_MINUTES: "120"
+      ROLLING_WINDOW: "5"
+      EWMA_ALPHA: "0.2"
+      WARN_Z: "3.0"
+      CRIT_Z: "5.0"
+      COOLDOWN_MINUTES: "0"
+      IGNORE_RECENT_MINUTES: "0"
+      MIN_DENOM_CLICKS: "50"
+      MIN_DENOM_ADD_TO_CART: "30"
+      POLL_SECONDS: "30"
+      RULE_NAME: "ewma_zscore_v1"
+    profiles: ["detector"]
+
+

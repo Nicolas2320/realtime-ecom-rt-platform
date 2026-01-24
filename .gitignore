@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+
+# Local data volumes (optional)
+data/
