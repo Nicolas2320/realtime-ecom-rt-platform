@@ -1,12 +1,13 @@
 # Real-Time E-Commerce Streaming Platform (Local-First Lakehouse)
 
-A portfolio-grade **streaming analytics** platform you can run locally with one command:
-**Redpanda (Kafka) -> Spark Structured Streaming (Bronze/Silver/Gold) -> MinIO (S3) + Postgres -> FastAPI + Streamlit**, plus an **EWMA + Z-score anomaly detector** writing alerts back to Postgres.
+This project simulates a real production scenario: **high-volume e-commerce events** (click, add_to_cart, checkout, purchase) arriving in real time, validated and organized into a **lakehouse** (Bronze/Silver/Gold), aggregated into **event-time KPIs**, and served through an API + dashboard, while an **anomaly detector** continuously monitors metrics and writes alerts back to the serving layer.
 
-**Bronze/Silver/Gold lakehouse** (parquet on MinIO)  
-**Silver data quality validations + quarantine**  
-**Event-time KPIs** (1-minute windows) served via API  
-**Anomaly detection** on KPIs (EWMA baseline + residual Z-score)
+It’s designed to demonstrate end-to-end **data engineering competencies**:
+- streaming ingestion (Kafka/Redpanda) and exactly-once patterns (checkpoints + idempotent writes)
+- data quality enforcement with **quarantine** (no data loss, observable failures)
+- lakehouse modeling (Bronze/Silver/Gold on S3/MinIO with partitions)
+- KPI serving with Postgres + FastAPI
+- monitoring/alerting with EWMA + Z-score anomaly detection
 
 ---
 
