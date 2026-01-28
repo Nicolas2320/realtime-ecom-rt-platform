@@ -1,16 +1,15 @@
-.PHONY: run up down clean logs ps topics events bronze bronze-tree silver silver-tree quarantine-tree gold psql kpi-sample detector alerts-sample down-all
+.PHONY: run-all up down clean logs ps topics events bronze bronze-tree silver silver-tree quarantine-tree gold psql kpi-sample detector alerts-sample down-all
 
 
-run: up topics
-# 	docker compose --profile events up -d --build generator
+run-all: up topics
 	docker compose --profile pipeline up -d --build bronze-writer
 	docker compose --profile pipeline up -d --build silver-writer
 	docker compose --profile pipeline up -d --build gold-writer
 	docker compose --profile detector up -d --build anomaly-detector
-
+# 	docker compose --profile events up -d --build generator
 
 down-all:
-	docker compose --profile pipeline --profile detector down
+	docker compose --profile events --profile pipeline --profile detector down
 
 up:
 	docker compose up -d --build
@@ -63,3 +62,5 @@ detector: topics
 alerts-sample:
 	docker exec -i postgres psql -U app -d analytics -c "SELECT window_start, metric, severity, value, baseline, score FROM serving.alerts ORDER BY window_start DESC LIMIT 20;"
 
+smoke:
+	bash scripts/smoke.sh
