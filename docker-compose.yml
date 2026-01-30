@@ -227,12 +227,6 @@ services:
       SILVER_CHECKPOINT: s3a://lake/_checkpoints/silver/ecom_events_v1/
       QUARANTINE_CHECKPOINT: s3a://lake/_checkpoints/quarantine/ecom_events_v1/
 
-      SPARK_SUBMIT_OPTS: >-
-        -Divy.cache.dir=/opt/spark/ivy
-        -Divy.home=/opt/spark/ivy
-        -Duser.home=/opt/spark
-        -Dcoursier.cache=/opt/spark/coursier
-
       EVENT_WATERMARK: "15 minutes"
       TRIGGER: "30 seconds"
       MAX_FILES_PER_TRIGGER: "50"
