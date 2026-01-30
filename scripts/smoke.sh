@@ -100,7 +100,7 @@ echo "[SMOKE] 10) /alerts/latest OK"
 
   echo ""
   echo "[SMOKE][DEBUG] Minio lake tree (bronze/silver):"
-  docker compose --profile debug run --rm mc tree local/bronze/ || true
-  docker compose --profile debug run --rm mc tree local/silver/ || true
+  docker compose --profile debug run --rm mc tree local/lake/bronze/ || true
+  docker compose --profile debug run --rm mc tree local/lake/silver/ || true
 
 echo "[SMOKE] SUCCESS (end-to-end system works)"
