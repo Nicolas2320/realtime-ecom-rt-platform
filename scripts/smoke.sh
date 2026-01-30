@@ -73,7 +73,7 @@ for i in {1..60}; do
     echo "[SMOKE] KPI rows found (count=$COUNT)"
     break
   fi
-  sleep 3
+  sleep 10
 done
 
 if [[ $KPI_OK -ne 1 ]]; then
