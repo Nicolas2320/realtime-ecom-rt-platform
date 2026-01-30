@@ -3,6 +3,10 @@ set -euo pipefail
 
 API_URL="${API_URL:-http://localhost:8000}"
 
+MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-600}"  # 10 min local
+SLEEP_SECONDS=10
+MAX_ITERS=$((MAX_WAIT_SECONDS / SLEEP_SECONDS))
+
 cleanup() {
   echo ""
   echo "[SMOKE] cleanup: docker compose down -v --remove-orphans"
@@ -62,7 +66,7 @@ fi
 
 echo "[SMOKE] 8) waiting for KPI rows in Postgres (serving.kpi_minute)..."
 KPI_OK=0
-for i in {1..60}; do
+for ((i=1; i<=MAX_ITERS; i++)); do
   COUNT=$(docker exec -i postgres psql -U app -d analytics -tA -v ON_ERROR_STOP=1 -c \
     "SELECT COUNT(*) FROM serving.kpi_minute WHERE window_start >= NOW() - INTERVAL '10 minutes';" || echo "0")
 
@@ -73,12 +77,21 @@ for i in {1..60}; do
     echo "[SMOKE] KPI rows found (count=$COUNT)"
     break
   fi
-  sleep 10
+  sleep $SLEEP_SECONDS
 done
 
 if [[ $KPI_OK -ne 1 ]]; then
-  echo "[SMOKE] ERROR: No KPI rows appeared in last 10 minutes"
+  echo "[SMOKE] ERROR: No KPI rows appeared in last minutes"
   echo "[SMOKE] TIP: check logs: docker compose logs -f gold-writer"
+
+  echo ""
+  echo "[SMOKE][DEBUG] bronze lake tree:"
+  docker compose --profile debug run --rm mc tree local/lake/bronze/ecom_events/v1/ || true
+
+  echo ""
+  echo "[SMOKE][DEBUG] silver lake tree:"
+  docker compose --profile debug run --rm mc tree local/lake/silver/ecom_events/v1/ || true
+
   exit 1
 fi
 

@@ -19,5 +19,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Smoke test
+        env:
+          MAX_WAIT_SECONDS: 1200   # 20 min in CI
         run: |
           bash scripts/smoke.sh
+
