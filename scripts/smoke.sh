@@ -44,13 +44,16 @@ echo "[SMOKE] 4) Checking tree (bronze)"
   echo "Number of files: "
   docker compose --profile debug run --rm mc ls --recursive local/lake/bronze/ecom_events/v1/ | wc -l
 
+  echo "[SMOKE][DEBUG] bronze writer logs:"
+  docker compose logs bronze-writer || true
+
 echo "[SMOKE] 5) Checking tree (silver)"
   docker compose --profile debug run --rm mc tree local/lake/silver/ecom_events/v1/ || true
   echo "Number of files: "
   docker compose --profile debug run --rm mc ls --recursive local/lake/silver/ecom_events/v1/ | wc -l
 
-  # echo "[SMOKE][DEBUG] silver writer logs:"
-  # docker compose logs silver-writer || true
+  echo "[SMOKE][DEBUG] silver writer logs:"
+  docker compose logs silver-writer || true
 
 # echo "[SMOKE] 5) starting anomaly detector"
 # 	docker compose --profile detector up -d --build anomaly-detector
