@@ -28,9 +28,11 @@ echo "[SMOKE] 2) creating topic"
 echo "[SMOKE] 3) starting generator (traffic)"
 	docker compose --profile events up -d --build generator
 
-  echo ""
-  echo "[SMOKE][DEBUG] lake tree:"
-  docker compose --profile debug run --rm mc tree local/ || true
+echo "[SMOKE] Waiting 30 seconds for generator to produce data..."
+sleep 30
+
+echo "[SMOKE] Checking topic detailed partitions section:"
+  docker exec redpanda-0 rpk topic info ecom.events.raw.v1 -p  || true
 
 # echo "[SMOKE] 4) starting pipeline (bronze/silver/gold)"
 # 	docker compose --profile pipeline up -d --build bronze-writer
