@@ -25,19 +25,16 @@ echo "[SMOKE] 1) starting base services (postgres/minio/redpanda/api/dashboard..
 echo "[SMOKE] 2) creating topic"
   docker exec -i redpanda-0 rpk topic create ecom.events.raw.v1 --brokers localhost:9092 -p 3 -r 1 || true
 
+echo "[SMOKE] 3) starting generator (traffic)"
+	docker compose --profile events up -d --build generator
+
+echo "[SMOKE] Waiting 60 seconds for generator to produce data..."
+sleep 60
+
 echo "[SMOKE] 4) starting pipeline (bronze)"
 	docker compose --profile pipeline up -d --build bronze-writer
-echo "[SMOKE] waiting for bronze ivy download (aws-java-sdk-bundle)..."
-for i in {1..120}; do
-  if docker exec bronze-writer sh -lc 'ls -lh /tmp/ivy | true' >/dev/null 2>&1; then
-    ok=$(docker exec bronze-writer sh -lc 'find /tmp/ivy -name "aws-java-sdk-bundle-1.12.262.jar" -size +200M | wc -l')
-    if [ "$ok" -ge 1 ]; then
-      echo "[SMOKE] bronze ivy ready"
-      break
-    fi
-  fi
-  sleep 2
-done
+
+sleep 120
 
 echo "[SMOKE] 4) Checking tree (bronze)"
   docker compose --profile debug run --rm mc tree local/lake/bronze/ecom_events/v1/ || true
@@ -50,17 +47,8 @@ echo "[SMOKE][DEBUG] bronze writer logs:"
 
 echo "[SMOKE] 4) starting pipeline (silver)"
 	docker compose --profile pipeline up -d --build silver-writer
-echo "[SMOKE] waiting for silver ivy download (aws-java-sdk-bundle)..."
-for i in {1..120}; do
-  if docker exec silver-writer sh -lc 'ls -lh /tmp/ivy | true' >/dev/null 2>&1; then
-    ok=$(docker exec silver-writer sh -lc 'find /tmp/ivy -name "aws-java-sdk-bundle-1.12.262.jar" -size +200M | wc -l')
-    if [ "$ok" -ge 1 ]; then
-      echo "[SMOKE] silver ivy ready"
-      break
-    fi
-  fi
-  sleep 2
-done
+
+sleep 120
 
 echo "[SMOKE] 4) Checking tree (silver)"
   docker compose --profile debug run --rm mc tree local/lake/silver/ecom_events/v1/ || true
@@ -72,26 +60,11 @@ echo "[SMOKE][DEBUG] silver writer logs:"
 
 echo "[SMOKE] 4) starting pipeline (gold)"
 	docker compose --profile pipeline up -d --build gold-writer
-echo "[SMOKE] waiting for gold ivy download (aws-java-sdk-bundle)..."
-for i in {1..120}; do
-  if docker exec gold-writer sh -lc 'ls -lh /tmp/ivy | true' >/dev/null 2>&1; then
-    ok=$(docker exec gold-writer sh -lc 'find /tmp/ivy -name "aws-java-sdk-bundle-1.12.262.jar" -size +200M | wc -l')
-    if [ "$ok" -ge 1 ]; then
-      echo "[SMOKE] gold ivy ready"
-      break
-    fi
-  fi
-  sleep 2
-done
+
+sleep 120
 
 echo "[SMOKE][DEBUG] gold writer logs:"
   docker compose logs gold-writer || true
-
-echo "[SMOKE] 3) starting generator (traffic)"
-	docker compose --profile events up -d --build generator
-
-echo "[SMOKE] Waiting 60 seconds for generator to produce data..."
-sleep 60
 
 # echo "[SMOKE] 5) starting anomaly detector"
 # 	docker compose --profile detector up -d --build anomaly-detector
