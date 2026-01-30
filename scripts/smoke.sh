@@ -25,6 +25,9 @@ echo "[SMOKE] 1) starting base services (postgres/minio/redpanda/api/dashboard..
 echo "[SMOKE] 2) creating topic"
   docker exec -i redpanda-0 rpk topic create ecom.events.raw.v1 --brokers localhost:9092 -p 3 -r 1 || true
 
+echo "[SMOKE] 4) starting pipeline (bronze)"
+	docker compose --profile pipeline up -d --build bronze-writer
+
 echo "[SMOKE] 3) starting generator (traffic)"
 	docker compose --profile events up -d --build generator
 
@@ -34,10 +37,10 @@ sleep 30
 echo "[SMOKE] Checking topic detailed partitions section:"
   docker exec redpanda-0 rpk topic info ecom.events.raw.v1 -p  || true
 
-# echo "[SMOKE] 4) starting pipeline (bronze/silver/gold)"
-# 	docker compose --profile pipeline up -d --build bronze-writer
-# 	docker compose --profile pipeline up -d --build silver-writer
-# 	docker compose --profile pipeline up -d --build gold-writer
+echo "[SMOKE] 4) Checking tree (bronze)"
+  docker compose --profile debug run --rm mc tree local/lake/bronze/ecom_events/v1/ || true
+  echo "Number of files: "
+  docker compose --profile debug run --rm mc ls --recursive local/lake/bronze/ecom_events/v1/ | wc -l
 
 # echo "[SMOKE] 5) starting anomaly detector"
 # 	docker compose --profile detector up -d --build anomaly-detector
