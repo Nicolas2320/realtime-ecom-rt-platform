@@ -34,7 +34,7 @@ sleep 60
 echo "[SMOKE] 4) starting pipeline (bronze)"
 	docker compose --profile pipeline up -d --build bronze-writer
 
-sleep 120
+# sleep 120
 
 echo "[SMOKE] 4) Checking tree (bronze)"
   docker compose --profile debug run --rm mc tree local/lake/bronze/ecom_events/v1/ || true
@@ -48,7 +48,7 @@ echo "[SMOKE][DEBUG] bronze writer logs:"
 echo "[SMOKE] 4) starting pipeline (silver)"
 	docker compose --profile pipeline up -d --build silver-writer
 
-sleep 120
+# sleep 120
 
 echo "[SMOKE] 4) Checking tree (silver)"
   docker compose --profile debug run --rm mc tree local/lake/silver/ecom_events/v1/ || true
@@ -61,13 +61,13 @@ echo "[SMOKE][DEBUG] silver writer logs:"
 echo "[SMOKE] 4) starting pipeline (gold)"
 	docker compose --profile pipeline up -d --build gold-writer
 
-sleep 120
+# sleep 120
 
 echo "[SMOKE][DEBUG] gold writer logs:"
   docker compose logs gold-writer || true
 
-# echo "[SMOKE] 5) starting anomaly detector"
-# 	docker compose --profile detector up -d --build anomaly-detector
+echo "[SMOKE] 5) starting anomaly detector"
+	docker compose --profile detector up -d --build anomaly-detector
 
 echo "[SMOKE] 6) waiting for API /health..."
 API_OK=0
@@ -133,8 +133,8 @@ echo "$LATEST"
 echo "$LATEST" | grep -E '"value"\s*:\s*[-]?[0-9]' || (echo "[SMOKE] ERROR: no numeric KPI values yet" && exit 1)
 echo "[SMOKE] /kpis/latest looks good "
 
-# echo "[SMOKE] 10) checking /alerts/latest returns OK..."
-# curl -fsS "$API_URL/alerts/latest"
-# echo "[SMOKE] /alerts/latest OK"
+echo "[SMOKE] 10) checking /alerts/latest returns OK..."
+curl -fsS "$API_URL/alerts/latest"
+echo "[SMOKE] /alerts/latest OK"
 
 echo "[SMOKE] SUCCESS (end-to-end system works)"
