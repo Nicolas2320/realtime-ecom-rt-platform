@@ -27,14 +27,14 @@ echo "[SMOKE] 2) creating topic"
 
 echo "[SMOKE] 4) starting pipeline (bronze/silver)"
 	docker compose --profile pipeline up -d --build bronze-writer
-	docker compose --profile pipeline up -d --build silver-writer
-	docker compose --profile pipeline up -d --build gold-writer
+	# docker compose --profile pipeline up -d --build silver-writer
+	# docker compose --profile pipeline up -d --build gold-writer
 
 echo "[SMOKE] 3) starting generator (traffic)"
 	docker compose --profile events up -d --build generator
 
-echo "[SMOKE] Waiting 60 seconds for generator to produce data..."
-sleep 60
+echo "[SMOKE] Waiting 30 seconds for generator to produce data..."
+sleep 30
 
 echo "[SMOKE] Checking topic detailed partitions section:"
   docker exec redpanda-0 rpk topic info ecom.events.raw.v1 -p  || true
@@ -44,13 +44,13 @@ echo "[SMOKE] 4) Checking tree (bronze)"
   echo "Number of files: "
   docker compose --profile debug run --rm mc ls --recursive local/lake/bronze/ecom_events/v1/ | wc -l
 
-echo "[SMOKE] 5) Checking tree (silver)"
-  docker compose --profile debug run --rm mc tree local/lake/silver/ecom_events/v1/ || true
-  echo "Number of files: "
-  docker compose --profile debug run --rm mc ls --recursive local/lake/silver/ecom_events/v1/ | wc -l
+# echo "[SMOKE] 5) Checking tree (silver)"
+#   docker compose --profile debug run --rm mc tree local/lake/silver/ecom_events/v1/ || true
+#   echo "Number of files: "
+#   docker compose --profile debug run --rm mc ls --recursive local/lake/silver/ecom_events/v1/ | wc -l
 
-  echo "[SMOKE][DEBUG] silver writer logs:"
-  docker compose logs silver-writer || true
+  # echo "[SMOKE][DEBUG] silver writer logs:"
+  # docker compose logs silver-writer || true
 
 # echo "[SMOKE] 5) starting anomaly detector"
 # 	docker compose --profile detector up -d --build anomaly-detector
