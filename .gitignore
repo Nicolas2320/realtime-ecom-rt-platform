@@ -12,3 +12,9 @@ __pycache__/
 
 # Local data volumes (optional)
 data/
+
+# Runtime logs (leak local machine paths, grow with every run)
+logs/
+
+# dbt local machine state (per-machine anonymous usage tracking id)
+.user.yml

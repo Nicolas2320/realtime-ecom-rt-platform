@@ -16,7 +16,7 @@ It’s designed to demonstrate end-to-end **data engineering competencies**:
 Start infrastructure + UI + pipeline services:
 
 ```bash
-make run
+make run-all
 ```
 
 Start traffic (event generator):
@@ -36,7 +36,7 @@ make events
 More details:
 - `docs/runbook.md`
 
-## Data layers (Bronze / Silver / Gold)
+## Data layers (Bronze / Silver / Gold / dbt marts)
 
 ### 1) Bronze (raw-ish, append-only)
 
@@ -90,7 +90,26 @@ KPIs per 1-minute event-time window:
 
 Gold uses **foreachBatch** and rewrites rows per window for idempotency.
 
-### 4) Event contract (what the generator produces)
+### 4) dbt marts (hourly rollups on top of Gold)
+
+**Input:** Postgres `serving.kpi_minute` / `serving.alerts` (via `stg_serving__*` sources)
+
+**Output:** `dbt_dev.mart_kpi_hourly`
+
+The dbt project at `dbt/ecom_analytics/` layers staging → intermediate → marts on top of the Gold KPIs:
+
+- staging models pull raw rows from `serving.kpi_minute` and `serving.alerts`
+- `int_kpi_minute__pivoted` pivots the long-format minute KPIs into columns
+- `mart_kpi_hourly` rolls those up to hourly grain, recomputing rates (`add_to_cart_rate`, `checkout_rate`, `purchase_conversion`, `aov`) from summed counts rather than averaging per-minute rates, with `dbt_utils` tests validating ranges
+
+Run it (from `dbt/ecom_analytics/`, with Postgres up via `make up`):
+
+```bash
+dbt run
+dbt test
+```
+
+### 5) Event contract (what the generator produces)
 
 Full examples + invalid examples: `docs/data_contract.md`
 
@@ -123,6 +142,9 @@ services/
   anomaly-detector/         # KPI polling + alerts
   api/                      # FastAPI serving KPIs/alerts
   dashboard/                # Streamlit UI
+dbt/ecom_analytics/         # staging/intermediate/marts models on top of Gold KPIs
 docker-compose.yml
 Makefile
 ```
+
+Python services (`generator`, `anomaly-detector`, `api`, `dashboard`) are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`, `uv sync` / `uv run`). `bronze-writer`, `silver-writer`, and `gold-writer` are Spark jobs and are unaffected.
