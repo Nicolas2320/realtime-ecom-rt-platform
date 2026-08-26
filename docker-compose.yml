@@ -20,10 +20,10 @@ services:
       KAFKA_BROKERS: redpanda-0:9092
       TOPIC: ecom.events.raw.v1
       EVENTS_PER_SEC: "1"
-      DUP_RATE: "0.0"
-      LATE_RATE: "0.0"
+      DUP_RATE: "0.1"
+      LATE_RATE: "0.1"
       LATE_MAX_SECONDS: "600"
-      INVALID_RATE: "0.01"
+      INVALID_RATE: "0.1"
     depends_on:
       - redpanda-0
     profiles: ["events"]

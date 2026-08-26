@@ -1,0 +1,5 @@
+models:
+  - name: int_kpi_minute__pivoted
+    description: >
+      Pivots kpi_minute from long/EAV format (one row per window_start+metric)
+      into one wide row per window_start, one column per metric.
