@@ -1,0 +1,36 @@
+models:
+  - name: mart_kpi_hourly
+    description: >
+      Hourly rollup of KPIs. Rates are recomputed from summed counts, not
+      averaged from per-minute rates. Note: click/add_to_cart/checkout/purchase
+      counts come from independently-weighted random events in the generator
+      (no real per-session funnel), so the rate columns are proxy ratios, not
+      true session-level conversion.
+    columns:
+      - name: hour_start
+        tests:
+          - not_null
+          - unique
+      - name: revenue
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+      - name: add_to_cart_rate
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+      - name: checkout_rate
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+      - name: purchase_conversion
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true

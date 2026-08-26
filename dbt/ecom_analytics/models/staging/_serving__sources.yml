@@ -11,6 +11,11 @@ sources:
           One row per (window_start, metric): long/EAV format. Rewritten
           continuously by the Spark gold-writer via foreachBatch, once per
           event-time window.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns:
+                - window_start
+                - metric
         columns:
           - name: window_start
             description: Start of the event-time window (UTC).
