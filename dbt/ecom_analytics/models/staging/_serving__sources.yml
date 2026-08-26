@@ -1,0 +1,64 @@
+sources:
+  - name: serving
+    description: >
+      Tables owned by the streaming pipeline (Spark gold-writer and the
+      anomaly-detector service). dbt only ever reads from these tables
+      nothing in this project writes back into `serving`.
+    schema: serving
+    tables:
+      - name: kpi_minute
+        description: >
+          One row per (window_start, metric): long/EAV format. Rewritten
+          continuously by the Spark gold-writer via foreachBatch, once per
+          event-time window.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns:
+                - window_start
+                - metric
+        columns:
+          - name: window_start
+            description: Start of the event-time window (UTC).
+            tests:
+              - not_null
+          - name: metric
+            description: Metric name.
+            tests:
+              - not_null
+              - accepted_values:
+                  values:
+                    - events_total
+                    - events_click
+                    - events_add_to_cart
+                    - events_checkout
+                    - events_purchase
+                    - revenue
+                    - aov
+                    - add_to_cart_rate
+                    - checkout_rate
+                    - purchase_conversion
+          - name: value
+            description: Metric value for this window.
+            tests:
+              - not_null
+
+      - name: alerts
+        description: >
+          Anomaly alerts written by the anomaly-detector service (EWMA +
+          Z-score rule) when a metric deviates from its rolling baseline.
+        columns:
+          - name: alert_id
+            tests:
+              - not_null
+              - unique
+          - name: window_start
+            tests:
+              - not_null
+          - name: metric
+            tests:
+              - not_null
+          - name: severity
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ["warning", "critical"]

@@ -1,0 +1,5 @@
+models:
+  - name: stg_serving__kpi_minute
+    description: 1:1 staging model over the kpi_minute source — renamed columns only, no reshaping.
+  - name: stg_serving__alerts
+    description: 1:1 staging model over the alerts source — renamed columns only, no reshaping.
