@@ -13,9 +13,7 @@ volumes:
 
 services:
   generator: # Generator of events
-    build:
-      context: .
-      dockerfile: services/generator/Dockerfile
+    build: ./services/generator
     container_name: generator
     networks: [platform_net]
     environment:
