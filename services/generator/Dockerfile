@@ -1,12 +1,11 @@
 FROM python:3.11-slim
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
 
-COPY services/generator/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN uv sync --frozen
 
-COPY services/generator/app ./app
-
-ENV PYTHONUNBUFFERED=1
-
-CMD ["python", "-m", "app.generator"]
+CMD ["uv", "run", "python", "-m", "app.generator"]
